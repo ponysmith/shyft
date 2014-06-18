@@ -1,0 +1,57 @@
+/**
+ * shyft.js core styles
+ * Do not edit these styles 
+ */
+.shyft-wrapper {position: relative; overflow: hidden; }
+.shyft-item { position: absolute; top: 0; width: 100%; left: -99999px; line-height: 0; text-align: center; }
+.shyft-item img { max-width: 100%; }
+.shyft-prev, .shyft-next {position: absolute; z-index: 5; display: inline-block; }
+.shyft-nav { position: absolute; z-index: 5; }
+.shyft-navlink { display: inline-block; }
+
+
+/**  
+ * Customizable styles
+ * ... Have at it!
+ */
+ .shyft-wrapper { font-size: 12px; }
+ .shyft-prev,
+ .shyft-next {
+    background-color: #000;
+    opacity: .6;
+    color: #fff;
+    text-decoration: none;
+    font-size: 2em;
+    padding: 10px 15px;    
+ }
+.shyft-prev:hover,
+.shyft-next:hover {
+    opacity: .9;
+}
+.shyft-prev { top: 30px; left: 0; }
+.shyft-next { top: 30px; right: 0; }
+
+.shyft-prev.shyft-disabled,
+.shyft-next.shyft-disabled {
+    position: absolute;
+    left: -99999px;
+    height: 0;
+    width: 0;
+}
+.shyft-nav {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: #000;
+    opacity: .7;
+    text-align: right;
+}
+.shyft-navlink {
+    color: #fff;
+    text-decoration: none;
+    padding: 10px 20px;
+}
+.shyft-navlink-active {
+    background-color: #fff;
+    color: #000;
+}
