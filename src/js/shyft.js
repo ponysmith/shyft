@@ -45,14 +45,16 @@
          * Default options
          */
         var _options = {
-            // Enable slideshow autoplay
-            autoplay: false,
-            // Pause slideshow when mouse hovers over carousel
-            hoverpause: true,
             // Initial slide to start on (1-indexed)
             offset: null,
+            // Enable slideshow autoplay
+            autoplay: false,
             // Delay in milliseconds between items in slideshow mode
             delay: 5000,
+            // Transition time in milliseconds when changing slides
+            transition: 800,
+            // Pause slideshow when mouse hovers over carousel
+            hoverpause: true,
             // Allow looping between first and last slides
             loop: true,
             // Enable the previous and next buttons
@@ -75,8 +77,6 @@
             //   If you want to use custom HTML and want the slide # you can use {{i}} in your string and it will be replaced with the slide #
             //   e.g. '<span id="slide-{{i}}">This is slide {{i}}</span>'
             navhtml: null,
-            // Transition time in milliseconds when changing slides
-            transition: 800,
             // Easing function. 'easeOutExpo' is defined in this plugin.  
             // To use other easing functions you must define them manually or include an easing library like the one in jQuery UI
             easing: 'easeOutExpo',
@@ -95,8 +95,7 @@
          */
         var _data = {
             indexes: {},
-            interval: null,
-            timeout: null
+            interval: null
         }
 
         /** 
@@ -115,17 +114,15 @@
              */
             init: function(obj, options) {
                 // Store a reference to the wrapper and add the wrapper class
-                _elements.wrapper = obj.addClass(_classes.wrapper);
-                // Import custom options to build the _options object
-                _private.buildOptions(options);
+                _elements.wrapper = obj;
+                // Build options from any data- attributes
+                dataoptions = _private.buildOptions(options);
+                // Build the final options object
+                $.extend(_options, options, dataoptions);
+
+
                 // Build the necessary elements
                 _private.build();
-                // Bind events
-                _private.bindEvents();
-                // Trigger onload callback
-                if(typeof _options.onload == 'function') _options.onload(_data.total, _data.indexes.current);
-                // Enable slideshow
-                (_options.autoplay) ? _public.start() : _public.stop();
                 // Return the public object
                 return _public;
             },
@@ -134,21 +131,21 @@
              * Build the necessary elements based on the given HTML and options
              */
             build: function() {
+                // Add the wrapper class
+                _elements.wrapper.addClass(_classes.wrapper)
                 // Create arrays for items and navlinks
                 // Add null first item.  This will allow all items to be 1-indexed instead of zero-indexed.  
                 // Makes more sense for public methods, etc.
-                _elements.items = [ null ];
+                _elements.itemsarr = [ null ];
                 _elements.navlinks = [ null ];
-
-                // Loop items
-                var tmpitems = _elements.wrapper.children();
-                _data.total = tmpitems.length;
-                tmpitems.each(function() { 
-                    // Wrap with item div
-                    $(this).wrap('<div class="' + _classes.item + '" />');
-                    // Add items to array
-                    var item = $(this).parents('.' + _classes.item);
-                    _elements.items.push(item);
+                // Store a reference to the jQuery collection of items
+                _elements.items = _elements.wrapper.children();
+                // Capture the total items
+                _data.total = _elements.items.length;
+                // Loop items to set them up and add them to the items array
+                _elements.items.each(function() {
+                    item = $(this).wrap('<div />').parent().addClass(_classes.item);
+                    _elements.itemsarr.push(item);
                 });
 
                 // Set the indexes
@@ -157,7 +154,7 @@
                 _private.updateIndexes(index);
 
                 // Inject the initial slide(s)
-                _private.inject(_elements.items[_data.indexes.current], 'fade', true);
+                _private.inject(_elements.itemsarr[_data.indexes.current], 'fade', true);
 
                 // Create the next and prev links
                 if(_options.prev) {
@@ -179,6 +176,12 @@
 
                 // Update the buttons
                 _private.updateButtons(_data.indexes.current);
+                // Bind events
+                _private.bindEvents();
+                // Trigger onload callback
+                if(typeof _options.onload == 'function') _options.onload(_data.total, _data.indexes.current);
+                // Enable slideshow
+                (_options.autoplay) ? _public.start() : _public.stop();
             },
 
             /** 
@@ -189,9 +192,7 @@
              * @param (object) The options object passed into the constructor
              */
             buildOptions: function(options) {
-                // Override the default options with the options passed in the constructor
-                $.extend(_options, options);
-                // Override again with options set via data-attributes on the wrapper object
+                var o = {};
                 var data = _elements.wrapper.data();
                 for(var key in data) {
                     // Cast the values appropriately
@@ -202,11 +203,15 @@
                         case (!isNaN(parseFloat(val)) && isFinite(val)): val = Number(val); break;
                         default: val = val.toString(); break;
                     }
-                    // Remove the 'shyft' preface and override in the _options object
-                    okey = key.replace(/^shyft-/, '');
-                    _options[okey] = val;    
+                    // Remove the 'shyft' preface
+                    okey = key.replace(/^shyft_/, '');
+                    o[okey] = val;    
                 }
+                return o;
             },
+
+            /** 
+             * Build the 
 
             /** 
              * Inject the requested slide and transition to it using the specified transition
@@ -319,7 +324,7 @@
              * Cleanup and other actions to be run after a change has completed
              */
             postchange: function() {
-                _elements.visible = _elements.items[_data.indexes.current];
+                _elements.visible = _elements.itemsarr[_data.indexes.current];
                 _data.animating = false;
                 if(typeof _options.onpostchange === 'function') _options.onpostchange(_data.indexes.old, _data.indexes.current);            
             },
@@ -373,6 +378,31 @@
         var _public = {
 
             /** 
+             * Destroy the carousel
+             */
+            destroy: function() {
+                // Remove elements
+                _elements.prev.remove();
+                _elements.next.remove();
+                _elements.nav.remove();
+                // Remove wrappers and classes
+                _elements.items.unwrap();
+                _elements.wrapper.removeClass('shyft-wrapper');
+                // Disable the autoplay interval
+                clearInterval(_data.interval);
+            },
+
+            /** 
+             * Update the carousel with new options
+             */
+            update: function(options) {
+                _public.destroy();
+                // Update options
+                $.extend(_options, options);
+                _private.build();
+            },
+
+            /** 
              * Change slide
              * @param (mixed) newindex: Defines which slide to change to
              *   (str) '+': Changes to the next slide
@@ -407,7 +437,7 @@
 
                 anim = anim || _options.changeanim;
                 if(typeof _options.onprechange === 'function') _options.onprechange(_data.indexes.current, newindex);
-                _private.inject(_elements.items[newindex], anim);
+                _private.inject(_elements.itemsarr[newindex], anim);
                 _private.updateButtons(newindex);
                 _private.updateIndexes(newindex);
             },
