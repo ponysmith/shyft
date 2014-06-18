@@ -119,8 +119,6 @@
                 dataoptions = _private.buildOptions(options);
                 // Build the final options object
                 $.extend(_options, options, dataoptions);
-
-
                 // Build the necessary elements
                 _private.build();
                 // Return the public object
@@ -209,9 +207,6 @@
                 }
                 return o;
             },
-
-            /** 
-             * Build the 
 
             /** 
              * Inject the requested slide and transition to it using the specified transition
@@ -386,7 +381,7 @@
                 _elements.next.remove();
                 _elements.nav.remove();
                 // Remove wrappers and classes
-                _elements.items.unwrap();
+                _elements.items.unwrap('.' + _classes.item);
                 _elements.wrapper.removeClass('shyft-wrapper');
                 // Disable the autoplay interval
                 clearInterval(_data.interval);
@@ -396,10 +391,33 @@
              * Update the carousel with new options
              */
             update: function(options) {
+                // Extend the options if new options were passed
+                if(typeof options != null) $.extend(_options, options);
+                // Destroy and rebuild the carousel
                 _public.destroy();
-                // Update options
-                $.extend(_options, options);
                 _private.build();
+            },
+
+            /** 
+             * Add a slide
+             * @param (jQuery) slide: jQuery object representing the slide content
+             */
+            add: function(slide, index) {
+                (!isNaN(parseFloat(index)) && isFinite(index) && index > 0 && index <= _data.total) 
+                    ? _elements.wrapper.find('.' + _classes.item + ':nth-of-type(' + index + ')').before(slide)
+                    : _elements.wrapper.append(slide);
+                _public.update({ offset: _data.indexes.current });
+            },
+
+            /** 
+             * Remove a slide
+             */
+            remove: function(index) {
+                _elements.itemsarr[index].remove();
+                opts = (index > _data.indexes.current)
+                    ? { offset: _data.indexes.current }
+                    : { offset: _data.indexes.current - 1};
+                _public.update(opts);
             },
 
             /** 
