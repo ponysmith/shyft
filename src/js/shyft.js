@@ -32,10 +32,14 @@
          */
         var _classes = {
             wrapper: 'shyft-wrapper',
+            fadewrapper: 'shyft-fade-wrapper',
+            canvas: 'shyft-canvas',
+            clone: 'shyft-clone',
             item: 'shyft-item',
             nav: 'shyft-nav',
             navlink: 'shyft-navlink',
             navlink_active: 'shyft-navlink-active',
+            navlink_active_secondary: 'shyft-navlink-active-secondary',
             prev: 'shyft-prev',
             next: 'shyft-next',
             disabled: 'shyft-disabled'
@@ -45,6 +49,10 @@
          * Default options
          */
         var _options = {
+            // Number of slides to show
+            numtoshow: 1,
+            // Number of slides to scroll on next/prev
+            numtoscroll: 1,
             // Initial slide to start on (1-indexed)
             offset: null,
             // Enable slideshow autoplay
@@ -64,10 +72,9 @@
             prevhtml: '&lsaquo;',
             nexthtml: '&rsaquo;',
             // Animation to use for various actions
-            //   'slide': automatically determines the correct direction to slide 
-            //   'slide_l2r': override default direction and force sliding left to right
-            //   'slide_r2l': override default direction and force sliding right to left
-            //   'fade': cross fade (default)
+            //   'slide': (default) slides left or right depending on relationship of slides
+            //   'fade': fade 
+            //   'instant': changes to the new slide with no transition
             prevanim: 'slide',
             nextanim: 'slide',
             changeanim: 'fade',
@@ -82,8 +89,12 @@
             easing: 'easeOutExpo',
             // Callback functions
             onload: null,
+            onupdate: null,
+            ondestroy: null,
             onprechange: null,
             onpostchange: null,
+            onadd: null,
+            onremove: null,
             onplay: null,
             onpause: null,
             onstart: null,
@@ -93,10 +104,7 @@
         /** 
          * Data object
          */
-        var _data = {
-            indexes: {},
-            interval: null
-        }
+        var _data = {}
 
         /** 
          * Element references
@@ -104,7 +112,7 @@
         var _elements = {}
 
         /** 
-         * Private variables and methods
+         * Private methods
          */
         var _private = {
 
@@ -127,57 +135,38 @@
 
             /** 
              * Build the necessary elements based on the given HTML and options
+             * @param (bool) isupdate: This will be true if build() was called as part of update(), otherwise, false
              */
-            build: function() {
+            build: function(isupdate) {
                 // Add the wrapper class
-                _elements.wrapper.addClass(_classes.wrapper)
-                // Create arrays for items and navlinks
-                // Add null first item.  This will allow all items to be 1-indexed instead of zero-indexed.  
-                // Makes more sense for public methods, etc.
-                _elements.itemsarr = [ null ];
-                _elements.navlinks = [ null ];
-                // Store a reference to the jQuery collection of items
-                _elements.items = _elements.wrapper.children();
-                // Capture the total items
+                _elements.wrapper.addClass(_classes.wrapper);
+                // Setup items
+                _data.indexes = {};
+                _data.itemwidth = _elements.wrapper.width() / _options.numtoshow;
+                _elements.items = _elements.wrapper.children().wrap('<div>').parent().addClass(_classes.item).css({ 'width': _data.itemwidth });
+                _elements.fadewrapper = $('<div>').addClass(_classes.fadewrapper);
                 _data.total = _elements.items.length;
-                // Loop items to set them up and add them to the items array
-                _elements.items.each(function() {
-                    item = $(this).wrap('<div />').parent().addClass(_classes.item);
-                    _elements.itemsarr.push(item);
-                });
-
-                // Set the indexes
+                // Set min and max indexes if looping is disabled
+                _data.indexes.min = 1;
+                _data.indexes.max = _data.total - (_options.numtoshow - 1);
+                // Create canvases
+                _elements.canvas = _elements.wrapper.children().wrapAll('<div>').parent().addClass(_classes.canvas);
+                // Set the index
                 var offset = parseInt(_options.offset) || 1;
-                var index = (offset > 0 && offset <= _data.total) ? offset : 1;
-                _private.updateIndexes(index);
-
-                // Inject the initial slide(s)
-                _private.inject(_elements.itemsarr[_data.indexes.current], 'fade', true);
-
-                // Create the next and prev links
-                if(_options.prev) {
-                    _elements.prev = $('<a href="" class="' + _classes.prev + '">' + _options.prevhtml + '</a>').appendTo(_elements.wrapper);
-                }
-                if(_options.next) {
-                    _elements.next = $('<a href="" class="' + _classes.next + '">' + _options.nexthtml + '</a>').appendTo(_elements.wrapper);                
-                }
-
-                // Create the nav links
-                if(_options.nav) {
-                    _elements.nav = $('<div class="' + _classes.nav + '" />').appendTo(_elements.wrapper);
-                    for(i=1; i<=_data.total; i++) {
-                        var navhtml = (_options.navhtml) ? _options.navhtml.replace('{{i}}', i) : i;
-                        var navlink = $('<a href="" class="' + _classes.navlink + '" rel="' + i + '">' + navhtml + '</a>').appendTo(_elements.nav);
-                        _elements.navlinks.push(navlink);
-                    }
-                }
-
-                // Update the buttons
-                _private.updateButtons(_data.indexes.current);
+                _data.indexes.current = (offset < 1 || offset > _data.total) ? 1 : offset;
+                // Build clone sections
+                _private.buildClones();
+                // Build the UI elements
+                _private.buildUI();
+                // Update buttons
+                _private.updateButtons();
                 // Bind events
                 _private.bindEvents();
-                // Trigger onload callback
-                if(typeof _options.onload == 'function') _options.onload(_data.total, _data.indexes.current);
+                // Trigger the appropriate callback
+                if(typeof _options.onload == 'function' && !isupdate) _options.onload(_data.total, _data.indexes.current);
+                if(typeof _options.onupdate == 'function' && isupdate) _options.onupdate(_data.total, _data.indexes.current);
+                // Set initial position
+                _private.transition('instant');
                 // Enable slideshow
                 (_options.autoplay) ? _public.start() : _public.stop();
             },
@@ -202,126 +191,184 @@
                         default: val = val.toString(); break;
                     }
                     // Remove the 'shyft' preface
-                    okey = key.replace(/^shyft_/, '');
+                    okey = key.toLowerCase().replace(/^shyft/, '');
                     o[okey] = val;    
                 }
                 return o;
             },
 
             /** 
-             * Inject the requested slide and transition to it using the specified transition
-             * @param (int) slide: Index (1-based) of the slide to change to
-             * @param (str) anim: Animation type to use: 
-             *    'slide': slide and automatically determine direction (l2r if new slide is earlier, r2l if later)
-             *    'slide_l2r': slide from left to right
-             *    'slide_r2l': slide from right to left
-             *    'fade': cross fade
-             * @param (bool) animateheight: Should the change in height (if there is one) be animated
+             * Build UI elements
              */
-            inject: function(slide, anim, animateheight) {
-                _private.updateHeight(slide, animateheight);
-                // Switch based on transition type
-                switch(anim) {
-                    case 'slide_r2l':
-                        _elements.visible.animate({ 'left': '-100%' }, _options.transition, _options.easing, function() {
-                            _elements.visible.css({ 'left': '-99999px' });
-                        });
-                        slide.css({ 'left': '100%' }).animate({ 'left': 0 }, _options.transition, _options.easing, function() {
-                            _private.postchange();
-                        });
+            buildUI: function() {
+                // Create the next and prev links
+                if(_options.prev) _elements.prev = $('<a>').addClass(_classes.prev).html(_options.prevhtml).appendTo(_elements.wrapper);
+                if(_options.next) _elements.next = $('<a>').addClass(_classes.next).html(_options.nexthtml).appendTo(_elements.wrapper);
+                // Create the nav links
+                if(_options.nav) {
+                    _elements.nav = $('<div>').addClass(_classes.nav).appendTo(_elements.wrapper);
+                    for(i=1; i<=_data.total; i++) {
+                        var navhtml = (_options.navhtml) ? _options.navhtml.replace(/{{i}}/g, i) : i;
+                        var navlink = $('<a>').addClass(_classes.navlink).attr('rel',i).html(navhtml).appendTo(_elements.nav);
+                    }
+                    _elements.navlinks = _elements.nav.find('.' + _classes.navlink);
+                }
+            },
+
+            /** 
+             * Build the necessary clones to add before and after the core items
+             * This will allow us to slide beyond the end of the set without blank space
+             */
+            buildClones: function() {
+                // Set the number of clones to create on each end
+                numclones = _options.numtoscroll + 1;
+                _data.clonewidth = (_data.itemwidth * numclones);
+                // Update the canvas width
+                _data.canvaswidth = (2 * numclones + _data.total) * _data.itemwidth;
+                _elements.canvas.css({ 'width':_data.canvaswidth });
+                // Create pre clones
+                _elements.items.clone().slice(_data.total - numclones, _data.total).addClass(_classes.clone).prependTo(_elements.canvas);
+                // Create post clones
+                _elements.items.clone().slice(0, numclones).addClass(_classes.clone).appendTo(_elements.canvas);
+                // Capture the clones
+                _elements.clones = _elements.wrapper.find('.' + _classes.clone);
+            },
+
+            /** 
+             * Validate and convert a change delta to a proper index
+             * This needs to take into account _options.loop
+             * @param (mixed) delta: Change delta to calculate the index from 
+             * @return (int): Returns an index (1-based).  Numbers below 1 and greater than _data.total correnspond to clone indexes
+             */
+            setIndexes: function(delta) {
+                _data.indexes.old = _data.indexes.current;
+                switch(delta) {
+                    case '+':
+                        var i = _data.indexes.current + _options.numtoscroll;
+                        if(!_options.loop && i > _data.indexes.max) i = _data.indexes.max;
                         break;
-                    case 'slide_l2r':
-                        _elements.visible.animate({ 'left': '100%' }, _options.transition, _options.easing, function() {
-                            _elements.visible.css({ 'left': '-99999px' });
-                        });
-                        slide.css({ 'left': '-100%' }).animate({ 'left': 0 }, _options.transition, _options.easing, function() {
-                            _private.postchange();
-                        });                
+                    case '-':
+                        var i = _data.indexes.current - _options.numtoscroll;
+                        if(!_options.loop && i < _data.indexes.min) i = _data.indexes.min;
                         break;
                     default: 
-                        // if there are already visible items, fade them out for a crossfade
-                        if(_elements.visible) {
-                            var old = _elements.visible;
-                            old.fadeOut(_options.transition, function() {
-                                old.css({ 'left': '-99999px' });
-                                old.show();
-                            });
-                        } 
-                        // Fade in the new slide
-                        slide.hide().css({ 'left': 0, 'z-index': 5 }).fadeIn(_options.transition, function() {
-                            slide.css({ 'z-index': 0 });
-                            _private.postchange();
-                        });                        
+                        var i = parseInt(delta);
+                        if(!_options.loop && i > _data.indexes.max) i = _data.indexes.max;
                         break;
                 }
+                _data.indexes.current = i;
             },
 
-            /** 
-             * Update the height of the carousel based on the upcoming image
-             * @param (int) s: Index (1-based) of the slide to change to
-             * @param (bool) skipanimation: Set to true to set height immediately and skip animation
+            /**
+             * Prechange setup
+             * @param (mixed) delta: The change delta for the currently processing change ('+', '-', or int)
              */
-            updateHeight: function(s, skipanimation) {
-                var s = s || _data.indexes.current;
-                var h = s.outerHeight();
-                if(skipanimation) _elements.wrapper.css({ 'height': h });
-                else _elements.wrapper.animate({ 'height': h }, 300, _options.animation);
-            },
-
-            /** 
-             * Update the indexes for current, next and previous, based off the passed index
-             * @param (int) x: Index (1-based) to use as the current index and base the next and previous indexes off of
-             */
-            updateIndexes: function(x) {
-                // Index of currently active item
-                _data.indexes.old = _data.indexes.current;
-                _data.indexes.current = x;
-                // Indexes of previous and next items
-                _data.indexes.prev = ( (x-1) < 1) ? (x-1) + _data.total : (x-1);
-                _data.indexes.next = ( (x+1) > _data.total) ? (x+1) - _data.total : (x+1);
-            },
-
-            /** 
-             * Update the nav and prev/next buttons based off current slide index and options
-             * This sets the active class to the nav item corresponding to the current slide
-             * It also disables the prev/next links if _options.loop is false and we are on the first/last slide respectively
-             * @param (int) n: Index (1-based) of the current slide
-             */
-            updateButtons: function(n) {
-                // Update the nav links
-                if(_options.nav) {
-                    _elements.nav.find('.' + _classes.navlink).removeClass(_classes.navlink_active);
-                    _elements.navlinks[n].addClass(_classes.navlink_active);
+            prechange: function(delta) {
+                // Get a valid index for the change
+                _private.setIndexes(delta);
+                // Update buttons
+                _private.updateButtons();
+                // If the new index is a clone index, reset the initial location so that the transition starts on clones and ends on real elements
+                // Then call setIndexes again to get the newindex based on the updated position
+                if(_data.indexes.current < 1) {
+                    _data.indexes.current = _data.indexes.old + _data.total;  
+                    _private.transition('instant');
+                    _private.setIndexes(delta);
                 }
-
-                // Update the prev / next links if necessary
-                if(!_options.loop) {
-                    // Set default state
-                    _data.prevdisabled = false;
-                    _elements.prev.removeClass(_classes.disabled);
-                    _data.indexes.nextdisabled = false;
-                    _elements.next.removeClass(_classes.disabled);
-                    // Disable previous if the first item is visible
-                    if(n==1) {
-                        _data.prevdisabled = true;
-                        _elements.prev.addClass(_classes.disabled);
-                    }
-                    // Disable next if the final item is visible
-                    if(n == _data.total) {
-                        _data.indexes.nextdisabled = true;
-                        _elements.next.addClass(_classes.disabled);
-                        _public.stop();
-                    }
+                if(_data.indexes.current > _data.total) {  
+                    _data.indexes.current = _data.indexes.old - _data.total;  
+                    _private.transition('instant');
+                    _private.setIndexes(delta);
                 }
+                if(typeof _options.onprechange == 'function') _options.onprechange(_data.indexes.current, delta);
             },
 
             /** 
              * Cleanup and other actions to be run after a change has completed
              */
             postchange: function() {
-                _elements.visible = _elements.itemsarr[_data.indexes.current];
-                _data.animating = false;
-                if(typeof _options.onpostchange === 'function') _options.onpostchange(_data.indexes.old, _data.indexes.current);            
+                // If we are on the final slide of autoplay and looping is disabled, stop()
+                if(!_options.loop && _data.indexes.current > _data.indexes.max) _public.stop();
+                // Remove the fade wrapper
+                _elements.fadewrapper.empty().remove();
+                // Trigger the callback
+                if(typeof _options.onpostchange == 'function') _options.onpostchange();
+                // Turn off the changing flag
+                _data.changing = false;
+            },
+    
+            /**
+             * Transition to a new slideset
+             * @param (str) anim: The animation to use
+             */
+            transition: function(anim) {
+                // Set the left offset
+                var left = (0 - (_elements.items.eq(_data.indexes.current - 1).position().left));
+                // var left = (0 - (_data.clonewidth + (_data.itemwidth * (_data.indexes.current-1))));
+                switch(anim) {
+                    case 'instant':
+                        _elements.canvas.css({ 'left': left });
+                        _private.postchange();
+                        break;
+                    case 'fade':
+                        var idx = _data.indexes.current;
+                        for(i=0; i<_options.numtoshow; i++) {
+                            if(idx > _data.total) idx = 1;
+                            _elements.items.eq(idx-1).clone().appendTo(_elements.fadewrapper);
+                            idx++;
+                        }
+                        _elements.fadewrapper.hide().prependTo(_elements.wrapper).fadeIn(_options.transition, function() {
+                            _private.transition('instant');
+                        });
+                        break;
+                    default: 
+                        _elements.canvas.animate({ 'left': left }, _options.transition, _private.postchange);
+                        break;
+                }
+            },
+
+            /** 
+             * Update the nav and prev/next buttons based off current slide index and options
+             * This sets the active class to the nav item corresponding to the current slide
+             * It also disables the prev/next links if _options.loop is false and we are on the first/last slide respectively
+             */
+            updateButtons: function() {
+                // Update the nav links
+                if(_options.nav) {
+                    _elements.navlinks.removeClass(_classes.navlink_active).removeClass(_classes.navlink_active_secondary);
+                    var idx = _data.indexes.current - 1;
+                    for(i=0; i<_options.numtoshow; i++) {
+                        if(idx >= _data.total) idx = 0;
+                        (i == 0) 
+                            ? _elements.navlinks.eq(idx).addClass(_classes.navlink_active)
+                            : _elements.navlinks.eq(idx).addClass(_classes.navlink_active_secondary);
+                        idx++;
+                    }
+                }
+                // Update the prev / next links if necessary
+                if(!_options.loop) {
+                    // Prev
+                    if(_options.prev) {
+                        _data.prevdisabled = false;
+                        _elements.prev.removeClass(_classes.disabled);
+                        // Disable previous if the first item is visible
+                        if(_data.indexes.current == _data.indexes.min) {
+                            _data.prevdisabled = true;
+                            _elements.prev.addClass(_classes.disabled);
+                        }
+                    }
+                    // Next
+                    if(_options.next) {
+                        _data.nextdisabled = false;
+                        _elements.next.removeClass(_classes.disabled);
+                        // Disable next if the final item is visible
+                        if(_data.indexes.current == _data.indexes.max) {
+                            _data.indexes.current.nextdisabled = true;
+                            _elements.next.addClass(_classes.disabled);
+                            _public.stop();
+                        }
+                    }
+                }
             },
 
             /** 
@@ -346,8 +393,8 @@
                 if(_options.nav) {
                     _elements.nav.on('click', '.' + _classes.navlink, function(e) {
                         e.preventDefault();
-                        var target = $(e.target).closest('.' + _classes.navlink).attr('rel');
-                        _public.change(target, _options.changeanim);
+                        var delta = $(e.target).closest('.' + _classes.navlink).attr('rel');
+                        _public.change(delta, _options.changeanim);
                     });
                 }
                 // Bind pause on hover
@@ -357,34 +404,34 @@
                         mouseleave: function() { _public.play(); }
                     });
                 }
-                // Bind resize
-                $(window).on('resize', function() {
-                    _private.updateHeight(_elements.visible, true);
-                });
             },
 
         }
 
 
         /** 
-         * Public object
-         * The public object is returned by the constructor and exposes public methods
+         * Public object returned by the constructor to expose public methods
          */
         var _public = {
 
             /** 
              * Destroy the carousel
+             * @param (bool) nocallback: Set to true to prevent ondestroy callback from firing - useful for internal use of destroy() as in update()
              */
-            destroy: function() {
+            destroy: function(nocallback) {
                 // Remove elements
                 _elements.prev.remove();
                 _elements.next.remove();
                 _elements.nav.remove();
+                _elements.clones.remove();
+                _elements.items.unwrap('.' + _classes.canvas);
                 // Remove wrappers and classes
-                _elements.items.unwrap('.' + _classes.item);
+                _elements.items.children().unwrap('.' + _classes.item);
                 _elements.wrapper.removeClass('shyft-wrapper');
                 // Disable the autoplay interval
                 clearInterval(_data.interval);
+                // Fire the callback
+                if(typeof _options.ondestroy == 'function' && !nocallback) _options.ondestroy();
             },
 
             /** 
@@ -394,70 +441,83 @@
                 // Extend the options if new options were passed
                 if(typeof options != null) $.extend(_options, options);
                 // Destroy and rebuild the carousel
-                _public.destroy();
-                _private.build();
+                _public.destroy(true);
+                _private.build(true);
             },
 
             /** 
              * Add a slide
              * @param (jQuery) slide: jQuery object representing the slide content
+             * @param (int) index: 1-based index corresponding to the position to add the new slide
+             * @param (bool) focus: set true to automatically focus the new slide
              */
-            add: function(slide, index) {
+            add: function(slide, index, focus) {
+                // Add the slide to the appropriate position
                 (!isNaN(parseFloat(index)) && isFinite(index) && index > 0 && index <= _data.total) 
-                    ? _elements.wrapper.find('.' + _classes.item + ':nth-of-type(' + index + ')').before(slide)
+                    ? _elements.items.eq(index - 1).before(slide)
                     : _elements.wrapper.append(slide);
-                _public.update({ offset: _data.indexes.current });
+                // Fire the add callback
+                if(typeof _options.onadd == 'function') _options.onadd(slide);
+                // Set the slide to focus and refresh the carousel
+                var idx = (focus) ? index : _data.indexes.current;
+                _public.update({ offset: idx });
             },
 
             /** 
              * Remove a slide
+             * @param (int) index: 1-based index of the slide to remove
              */
             remove: function(index) {
-                _elements.itemsarr[index].remove();
+                // Remove the selected slide
+                var item = _elements.items.filter(':nth-of-type(' + index + ')');
+                item.remove();
+                // Fire the callback
+                if(typeof _options.onremove === 'function') _options.onremove(item);
+                // Make sure the current slide persists when the carousel is rebuilt
                 opts = (index > _data.indexes.current)
                     ? { offset: _data.indexes.current }
                     : { offset: _data.indexes.current - 1};
+                // Refresh the carousel
                 _public.update(opts);
             },
 
             /** 
              * Change slide
-             * @param (mixed) newindex: Defines which slide to change to
+             * @param (mixed) delta: Defines which slide to change to
              *   (str) '+': Changes to the next slide
              *   (str) '-': Changes to the previous slide
              *   (int)    : Changes to the index (1-based) defined by the integer
-             * @param (bool) (optional) nostop: Pass boolean true to prevent the change from triggering the stop() action
              * @param (str) (optional) anim: Animation type to use for the change
+             * @param (bool) (optional) nostop: Pass boolean true to prevent the change from triggering the stop() action
              */
-            change: function(newindex, anim, nostop) {
+            change: function(delta, anim, nostop) {
+                // Don't allow two change events at once
+                if(_data.changing) return;
+                _data.changing = true;
+                // Set a default animation
+                anim = anim || 'slide';
+                // Trigger stop if nostop is not true
                 if(!nostop) _public.stop();
-                if(_data.animating) return false;
-                _data.animating = true;
-                if(newindex == _data.indexes.current) return false;
-                // If the animation is 'slide', determine the correct direction to slide
-                if(anim == 'slide') {
-                    anim = (newindex > _data.indexes.current || newindex == '+') ? 'slide_r2l' : 'slide_l2r';
-                }
-                // Switch slides based on the type of change
-                switch(newindex) {
-                    case '+':
-                        if(_data.indexes.nextdisabled) return false;
-                        newindex = _data.indexes.next;
-                        break;
-                    case '-':
-                        if(_data.prevdisabled) return false;
-                        newindex = _data.indexes.prev;
-                        break;
-                    default: 
-                        newindex = parseInt(newindex);
-                        break;
-                }
+                // Handle any pre-change setup
+                _private.prechange(delta);
+                // If the updated index is the same as the current, no need to go any further
+                if(_data.indexes.old == _data.indexes.current) return;
+                // Transition
+                _private.transition(anim);
+            },
 
-                anim = anim || _options.changeanim;
-                if(typeof _options.onprechange === 'function') _options.onprechange(_data.indexes.current, newindex);
-                _private.inject(_elements.itemsarr[newindex], anim);
-                _private.updateButtons(newindex);
-                _private.updateIndexes(newindex);
+            /** 
+             * Alias for change('-')
+             */
+            prev: function() {
+                _public.change('-');
+            },
+
+            /** 
+             * Alias for change('-')
+             */
+            next: function() {
+                _public.change('+');
             },
 
             /** 

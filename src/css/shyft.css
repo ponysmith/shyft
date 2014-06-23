@@ -1,13 +1,20 @@
 /**
  * shyft.js core styles
- * Do not edit these styles 
+ * Edit these at your own risk
  */
-.shyft-wrapper {position: relative; overflow: hidden; }
-.shyft-item { position: absolute; top: 0; width: 100%; left: -99999px; line-height: 0; text-align: center; }
+.shyft-wrapper { position: relative; overflow: hidden; }
+.shyft-fade-wrapper { position: absolute; top: 0; bottom: 0; right: 0; left: 0; z-index: 3; }
+.shyft-canvas { position: relative; }
+.shyft-item, .shyft-clone { display: block; float: left; line-height: 0; }
 .shyft-item img { max-width: 100%; }
 .shyft-prev, .shyft-next {position: absolute; z-index: 5; display: inline-block; }
 .shyft-nav { position: absolute; z-index: 5; }
 .shyft-navlink { display: inline-block; }
+/** 
+ * End of core styles
+ */
+
+
 
 
 /**  
@@ -54,4 +61,8 @@
 .shyft-navlink-active {
     background-color: #fff;
     color: #000;
+}
+.shyft-navlink-active-secondary {
+    background-color: #555;
+    color: #ccc;
 }
