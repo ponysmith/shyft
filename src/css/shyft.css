@@ -4,12 +4,12 @@
  */
 .shyft-wrapper { position: relative; overflow: hidden; }
 .shyft-fade-wrapper { position: absolute; top: 0; bottom: 0; right: 0; left: 0; z-index: 3; }
-.shyft-canvas { position: relative; }
+.shyft-canvas { position: relative; width: 99999px; }
 .shyft-item, .shyft-clone { display: block; float: left; line-height: 0; }
 .shyft-item img { max-width: 100%; }
-.shyft-prev, .shyft-next {position: absolute; z-index: 5; display: inline-block; }
+.shyft-prev, .shyft-next {position: absolute; z-index: 5; display: inline-block; cursor: pointer; }
 .shyft-nav { position: absolute; z-index: 5; }
-.shyft-navlink { display: inline-block; }
+.shyft-navlink { display: inline-block; cursor: pointer; }
 /** 
  * End of core styles
  */

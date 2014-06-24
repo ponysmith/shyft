@@ -71,6 +71,8 @@
             // Custom HTML for previous and next links
             prevhtml: '&lsaquo;',
             nexthtml: '&rsaquo;',
+            // Enable the navigation links
+            nav: true,
             // Animation to use for various actions
             //   'slide': (default) slides left or right depending on relationship of slides
             //   'fade': fade 
@@ -78,8 +80,6 @@
             prevanim: 'slide',
             nextanim: 'slide',
             changeanim: 'fade',
-            // Enable the navigation links
-            nav: true,
             // Custom HTML to be used for all navigation links.  If not provided, defaults to the number of the current slide
             //   If you want to use custom HTML and want the slide # you can use {{i}} in your string and it will be replaced with the slide #
             //   e.g. '<span id="slide-{{i}}">This is slide {{i}}</span>'
@@ -143,7 +143,7 @@
                 // Setup items
                 _data.indexes = {};
                 _data.itemwidth = _elements.wrapper.width() / _options.numtoshow;
-                _elements.items = _elements.wrapper.children().wrap('<div>').parent().addClass(_classes.item).css({ 'width': _data.itemwidth });
+                _elements.items = _elements.wrapper.children().wrap('<div>').parent().addClass(_classes.item);
                 _elements.fadewrapper = $('<div>').addClass(_classes.fadewrapper);
                 _data.total = _elements.items.length;
                 // Set min and max indexes if looping is disabled
@@ -156,6 +156,8 @@
                 _data.indexes.current = (offset < 1 || offset > _data.total) ? 1 : offset;
                 // Build clone sections
                 _private.buildClones();
+                // Set item width
+                _private.updateWidths();
                 // Build the UI elements
                 _private.buildUI();
                 // Update buttons
@@ -221,15 +223,12 @@
              */
             buildClones: function() {
                 // Set the number of clones to create on each end
-                numclones = _options.numtoscroll + 1;
-                _data.clonewidth = (_data.itemwidth * numclones);
-                // Update the canvas width
-                _data.canvaswidth = (2 * numclones + _data.total) * _data.itemwidth;
-                _elements.canvas.css({ 'width':_data.canvaswidth });
+                _data.numclones = _options.numtoscroll + 1;
+                _data.clonewidth = (_data.itemwidth * _data.numclones);
                 // Create pre clones
-                _elements.items.clone().slice(_data.total - numclones, _data.total).addClass(_classes.clone).prependTo(_elements.canvas);
+                _elements.items.clone().slice(_data.total - _data.numclones, _data.total).addClass(_classes.clone).prependTo(_elements.canvas);
                 // Create post clones
-                _elements.items.clone().slice(0, numclones).addClass(_classes.clone).appendTo(_elements.canvas);
+                _elements.items.clone().slice(0, _data.numclones).addClass(_classes.clone).appendTo(_elements.canvas);
                 // Capture the clones
                 _elements.clones = _elements.wrapper.find('.' + _classes.clone);
             },
@@ -259,72 +258,17 @@
                 _data.indexes.current = i;
             },
 
-            /**
-             * Prechange setup
-             * @param (mixed) delta: The change delta for the currently processing change ('+', '-', or int)
-             */
-            prechange: function(delta) {
-                // Get a valid index for the change
-                _private.setIndexes(delta);
-                // Update buttons
-                _private.updateButtons();
-                // If the new index is a clone index, reset the initial location so that the transition starts on clones and ends on real elements
-                // Then call setIndexes again to get the newindex based on the updated position
-                if(_data.indexes.current < 1) {
-                    _data.indexes.current = _data.indexes.old + _data.total;  
-                    _private.transition('instant');
-                    _private.setIndexes(delta);
-                }
-                if(_data.indexes.current > _data.total) {  
-                    _data.indexes.current = _data.indexes.old - _data.total;  
-                    _private.transition('instant');
-                    _private.setIndexes(delta);
-                }
-                if(typeof _options.onprechange == 'function') _options.onprechange(_data.indexes.current, delta);
-            },
-
             /** 
-             * Cleanup and other actions to be run after a change has completed
+             * Set the item width
              */
-            postchange: function() {
-                // If we are on the final slide of autoplay and looping is disabled, stop()
-                if(!_options.loop && _data.indexes.current > _data.indexes.max) _public.stop();
-                // Remove the fade wrapper
-                _elements.fadewrapper.empty().remove();
-                // Trigger the callback
-                if(typeof _options.onpostchange == 'function') _options.onpostchange();
-                // Turn off the changing flag
-                _data.changing = false;
-            },
-    
-            /**
-             * Transition to a new slideset
-             * @param (str) anim: The animation to use
-             */
-            transition: function(anim) {
-                // Set the left offset
-                var left = (0 - (_elements.items.eq(_data.indexes.current - 1).position().left));
-                // var left = (0 - (_data.clonewidth + (_data.itemwidth * (_data.indexes.current-1))));
-                switch(anim) {
-                    case 'instant':
-                        _elements.canvas.css({ 'left': left });
-                        _private.postchange();
-                        break;
-                    case 'fade':
-                        var idx = _data.indexes.current;
-                        for(i=0; i<_options.numtoshow; i++) {
-                            if(idx > _data.total) idx = 1;
-                            _elements.items.eq(idx-1).clone().appendTo(_elements.fadewrapper);
-                            idx++;
-                        }
-                        _elements.fadewrapper.hide().prependTo(_elements.wrapper).fadeIn(_options.transition, function() {
-                            _private.transition('instant');
-                        });
-                        break;
-                    default: 
-                        _elements.canvas.animate({ 'left': left }, _options.transition, _private.postchange);
-                        break;
-                }
+            updateWidths: function() {
+                _data.itemwidth = _elements.wrapper.width() / _options.numtoshow;
+                _data.clonewidth = _data.itemwidth * _data.numclones;
+                _data.canvaswidth = (2 * _data.numclones + _data.total) * _data.itemwidth;
+                _elements.items.css({ 'width': _data.itemwidth });
+                _elements.clones.css({ 'width': _data.itemwidth });
+                _elements.canvas.css({ 'width': _data.convaswidth });
+                _private.transition('instant');
             },
 
             /** 
@@ -371,6 +315,73 @@
                 }
             },
 
+            /**
+             * Prechange setup
+             * @param (mixed) delta: The change delta for the currently processing change ('+', '-', or int)
+             */
+            prechange: function(delta) {
+                // Get a valid index for the change
+                _private.setIndexes(delta);
+                // Update buttons
+                _private.updateButtons();
+                // If the new index is a clone index, reset the initial location so that the transition starts on clones and ends on real elements
+                // Then call setIndexes again to get the newindex based on the updated position
+                if(_data.indexes.current < 1) {
+                    _data.indexes.current = _data.indexes.old + _data.total;  
+                    _private.transition('instant');
+                    _private.setIndexes(delta);
+                }
+                if(_data.indexes.current > _data.total) {  
+                    _data.indexes.current = _data.indexes.old - _data.total;  
+                    _private.transition('instant');
+                    _private.setIndexes(delta);
+                }
+                if(typeof _options.onprechange == 'function') _options.onprechange(_data.indexes.current, delta);
+            },
+
+            /** 
+             * Cleanup and other actions to be run after a change has completed
+             */
+            postchange: function() {
+                // If we are on the final slide of autoplay and looping is disabled, stop()
+                if(!_options.loop && _data.indexes.current > _data.indexes.max) _public.stop();
+                // Remove the fade wrapper
+                _elements.fadewrapper.empty().remove();
+                // Trigger the callback
+                if(typeof _options.onpostchange == 'function') _options.onpostchange(_data.indexes.old, _data.indexes.current);
+                // Turn off the changing flag
+                _data.changing = false;
+            },
+    
+            /**
+             * Transition to a new slideset
+             * @param (str) anim: The animation to use
+             */
+            transition: function(anim) {
+                // Set the left offset
+                var left = (0 - (_data.clonewidth + (_data.itemwidth * (_data.indexes.current-1))));
+                switch(anim) {
+                    case 'instant':
+                        _elements.canvas.css({ 'left': left });
+                        _private.postchange();
+                        break;
+                    case 'fade':
+                        var idx = _data.indexes.current;
+                        for(i=0; i<_options.numtoshow; i++) {
+                            if(idx > _data.total) idx = 1;
+                            _elements.items.eq(idx-1).clone().appendTo(_elements.fadewrapper);
+                            idx++;
+                        }
+                        _elements.fadewrapper.hide().prependTo(_elements.wrapper).fadeIn(_options.transition, function() {
+                            _private.transition('instant');
+                        });
+                        break;
+                    default: 
+                        _elements.canvas.animate({ 'left': left }, _options.transition, _private.postchange);
+                        break;
+                }
+            },
+
             /** 
              * Bind events to the various elements in the carousel
              * Events will not be bound if their respective options are not enabled
@@ -404,6 +415,8 @@
                         mouseleave: function() { _public.play(); }
                     });
                 }
+                // Resize item widths on resize
+                $(window).on('resize', _private.updateWidths);
             },
 
         }
@@ -438,6 +451,8 @@
              * Update the carousel with new options
              */
             update: function(options) {
+                // Set the offset to current slide to maintain state unless overridden with the new options
+                _options.offset = _data.indexes.current;
                 // Extend the options if new options were passed
                 if(typeof options != null) $.extend(_options, options);
                 // Destroy and rebuild the carousel
@@ -469,7 +484,7 @@
              */
             remove: function(index) {
                 // Remove the selected slide
-                var item = _elements.items.filter(':nth-of-type(' + index + ')');
+                var item = _elements.items.eq(index - 1);
                 item.remove();
                 // Fire the callback
                 if(typeof _options.onremove === 'function') _options.onremove(item);
@@ -492,7 +507,7 @@
              */
             change: function(delta, anim, nostop) {
                 // Don't allow two change events at once
-                if(_data.changing) return;
+                if(_data.changing) return false;
                 _data.changing = true;
                 // Set a default animation
                 anim = anim || 'slide';
