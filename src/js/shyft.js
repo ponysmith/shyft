@@ -336,7 +336,7 @@
                     _private.transition('instant');
                     _private.setIndexes(delta);
                 }
-                if(typeof _options.onprechange == 'function') _options.onprechange(_data.indexes.current, delta);
+                if(typeof _options.onprechange == 'function') _options.onprechange(_data.indexes.old, _data.indexes.current);
             },
 
             /** 
@@ -437,7 +437,8 @@
                 _elements.next.remove();
                 _elements.nav.remove();
                 _elements.clones.remove();
-                _elements.items.unwrap('.' + _classes.canvas);
+                if(_data.total > 0) _elements.items.unwrap('.' + _classes.canvas);
+                else _elements.canvas.remove();
                 // Remove wrappers and classes
                 _elements.items.children().unwrap('.' + _classes.item);
                 _elements.wrapper.removeClass('shyft-wrapper');
@@ -483,17 +484,19 @@
              * @param (int) index: 1-based index of the slide to remove
              */
             remove: function(index) {
-                // Remove the selected slide
-                var item = _elements.items.eq(index - 1);
-                item.remove();
+                index = index || _data.indexes.current;
+                // Remove the selected slide and capture a reference to it (unwrapped)
+                var item = _elements.items.eq(index - 1).remove().children().unwrap('.' + _classes.item);
                 // Fire the callback
                 if(typeof _options.onremove === 'function') _options.onremove(item);
                 // Make sure the current slide persists when the carousel is rebuilt
                 opts = (index > _data.indexes.current)
                     ? { offset: _data.indexes.current }
                     : { offset: _data.indexes.current - 1};
-                // Refresh the carousel
-                _public.update(opts);
+                // Only refresh if there will still be at least one item, otherwise destroy
+                _data.total--;
+                if(_data.total > 0) _public.update(opts);
+                else _public.destroy();
             },
 
             /** 
@@ -510,7 +513,7 @@
                 if(_data.changing) return false;
                 _data.changing = true;
                 // Set a default animation
-                anim = anim || 'slide';
+                anim = anim || _options.changeanim;
                 // Trigger stop if nostop is not true
                 if(!nostop) _public.stop();
                 // Handle any pre-change setup
@@ -519,20 +522,6 @@
                 if(_data.indexes.old == _data.indexes.current) return;
                 // Transition
                 _private.transition(anim);
-            },
-
-            /** 
-             * Alias for change('-')
-             */
-            prev: function() {
-                _public.change('-');
-            },
-
-            /** 
-             * Alias for change('-')
-             */
-            next: function() {
-                _public.change('+');
             },
 
             /** 
