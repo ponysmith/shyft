@@ -31,6 +31,7 @@
          * CSS Classes
          */
         var _classes = {
+            usecss: 'use-css',
             wrapper: 'shyft-wrapper',
             fadewrapper: 'shyft-fade-wrapper',
             canvas: 'shyft-canvas',
@@ -87,6 +88,8 @@
             // Easing function. 'easeOutExpo' is defined in this plugin.  
             // To use other easing functions you must define them manually or include an easing library like the one in jQuery UI
             easing: 'easeOutExpo',
+            // Use CSS for transitions
+            usecss: false,
             // Callback functions
             onload: null,
             onupdate: null,
@@ -118,7 +121,7 @@
 
             /** 
              * Initialize the plugin
-             * @return obj Returns the _public object
+             * @return (obj) Returns the _public object
              */
             init: function(obj, options) {
                 // Store a reference to the wrapper and add the wrapper class
@@ -138,7 +141,7 @@
              * @param (bool) isupdate: This will be true if build() was called as part of update(), otherwise, false
              */
             build: function(isupdate) {
-                // Add the wrapper class
+                // Add the wrapper class and the use-css class if necessary
                 _elements.wrapper.addClass(_classes.wrapper);
                 // Setup items
                 _data.indexes = {};
@@ -154,6 +157,8 @@
                 // Set the index
                 var offset = parseInt(_options.offset) || 1;
                 _data.indexes.current = (offset < 1 || offset > _data.total) ? 1 : offset;
+                // Enable CSS Transitions if necessary
+                // if(_options.usecss) _private.enableCssTransitions();
                 // Build clone sections
                 _private.buildClones();
                 // Set item width
@@ -256,6 +261,33 @@
                         break;
                 }
                 _data.indexes.current = i;
+            },
+
+            /**
+             * Set the transition timers for the CSS transitions
+             * @param (int) t: Time (in seconds) for the transition
+            setCssTransitions: function(time) {
+                var t = _options.transition/1000;
+                _elements.fadewrapper.get(0).style.transitionDuration = t + 's';
+                _elements.canvas.get(0).style.transitionDuration = t + 's';
+            },
+             */
+
+            /**
+             * Enable CSS Transitions
+             */
+            enableCssTransitions: function() {
+                var t = _options.transition/1000;
+                _elements.fadewrapper.css({ transition: 'opacity ' + t + 's' });
+                _elements.canvas.css({ transition: 'left ' + t + 's' });
+            },
+
+            /**
+             * Disable CSS Transitions
+             */
+            disableCssTransitions: function() {
+                _elements.fadewrapper.css({ transition: '' });
+                _elements.canvas.css({ transition: '' });
             },
 
             /** 
@@ -362,6 +394,7 @@
                 var left = (0 - (_data.clonewidth + (_data.itemwidth * (_data.indexes.current-1))));
                 switch(anim) {
                     case 'instant':
+                        _private.disableCssTransitions();
                         _elements.canvas.css({ 'left': left });
                         _private.postchange();
                         break;
@@ -372,12 +405,34 @@
                             _elements.items.eq(idx-1).clone().appendTo(_elements.fadewrapper);
                             idx++;
                         }
-                        _elements.fadewrapper.hide().prependTo(_elements.wrapper).fadeIn(_options.transition, function() {
-                            _private.transition('instant');
-                        });
+
+                        if(_options.usecss) {
+                            _private.disableCssTransitions();
+                            _elements.fadewrapper.css({ opacity: 0 });
+                            _elements.fadewrapper.prependTo(_elements.wrapper);
+                            // Small timeout here to make sure the non-transition css change finished
+                            // before the transition is re-enabled
+                            setTimeout(function() {
+                                _private.enableCssTransitions();
+                                _elements.fadewrapper.css({ opacity: 1 });
+                                setTimeout(function() {
+                                    _private.transition('instant');
+                                }, _options.transition);
+                            }, 20);
+                        } else {
+                            _elements.fadewrapper.hide().prependTo(_elements.wrapper).fadeIn(_options.transition, function() {
+                                _private.transition('instant');
+                            });
+                        }
                         break;
                     default: 
-                        _elements.canvas.animate({ 'left': left }, _options.transition, _private.postchange);
+                        if(_options.usecss) {
+                            _private.enableCssTransitions();
+                            _elements.canvas.css({ 'left': left });
+                            _private.postchange();
+                        } else {
+                            _elements.canvas.animate({ 'left': left }, _options.transition, _private.postchange);
+                        }
                         break;
                 }
             },
@@ -518,10 +573,14 @@
                 if(!nostop) _public.stop();
                 // Handle any pre-change setup
                 _private.prechange(delta);
-                // If the updated index is the same as the current, no need to go any further
-                if(_data.indexes.old == _data.indexes.current) return;
-                // Transition
-                _private.transition(anim);
+                // Adding a 0 timeout here because if we're using CSS Transitions, any non-transitional 
+                // changes, like reindexing on looping changes, needs to happen before the transitions are re-enabled
+                setTimeout(function() {
+                    // If the updated index is the same as the current, no need to go any further
+                    if(_data.indexes.old == _data.indexes.current) return;
+                    // Transition
+                    _private.transition(anim);
+                }, 0);
             },
 
             /** 

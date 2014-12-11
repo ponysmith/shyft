@@ -10,11 +10,6 @@
 .shyft-prev, .shyft-next {position: absolute; z-index: 5; display: inline-block; cursor: pointer; }
 .shyft-nav { position: absolute; z-index: 5; }
 .shyft-navlink { display: inline-block; cursor: pointer; }
-/** 
- * End of core styles
- */
-
-
 
 
 /**  
