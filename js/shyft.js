@@ -31,7 +31,6 @@
          * CSS Classes
          */
         var _classes = {
-            usecss: 'use-css',
             wrapper: 'shyft-wrapper',
             fadewrapper: 'shyft-fade-wrapper',
             canvas: 'shyft-canvas',
@@ -69,6 +68,8 @@
             // Enable the previous and next buttons
             prev: true,
             next: true,
+            // Enable touch gestures
+            touch: true,
             // Custom HTML for previous and next links
             prevhtml: '&lsaquo;',
             nexthtml: '&rsaquo;',
@@ -89,7 +90,7 @@
             // To use other easing functions you must define them manually or include an easing library like the one in jQuery UI
             easing: 'easeOutExpo',
             // Use CSS for transitions
-            usecss: false,
+            usecss: true,
             // Callback functions
             onload: null,
             onupdate: null,
@@ -101,13 +102,19 @@
             onplay: null,
             onpause: null,
             onstart: null,
-            onstop: null
+            onstop: null,
+            onswipeleft: null,
+            onswiperight: null,
         };
 
         /** 
          * Data object
          */
-        var _data = {}
+        var _data = {
+            touch_x_distance: 150,
+            touch_y_distance: 50,
+            touch_min_time: 150,
+        }
 
         /** 
          * Element references
@@ -157,8 +164,8 @@
                 // Set the index
                 var offset = parseInt(_options.offset) || 1;
                 _data.indexes.current = (offset < 1 || offset > _data.total) ? 1 : offset;
-                // Enable CSS Transitions if necessary
-                // if(_options.usecss) _private.enableCssTransitions();
+                // Enable touch gestures
+                if(_options.touch) _private.enableTouch();
                 // Build clone sections
                 _private.buildClones();
                 // Set item width
@@ -242,7 +249,6 @@
              * Validate and convert a change delta to a proper index
              * This needs to take into account _options.loop
              * @param (mixed) delta: Change delta to calculate the index from 
-             * @return (int): Returns an index (1-based).  Numbers below 1 and greater than _data.total correnspond to clone indexes
              */
             setIndexes: function(delta) {
                 _data.indexes.old = _data.indexes.current;
@@ -264,14 +270,55 @@
             },
 
             /**
-             * Set the transition timers for the CSS transitions
-             * @param (int) t: Time (in seconds) for the transition
-            setCssTransitions: function(time) {
-                var t = _options.transition/1000;
-                _elements.fadewrapper.get(0).style.transitionDuration = t + 's';
-                _elements.canvas.get(0).style.transitionDuration = t + 's';
-            },
+             * Enable touch gestures
              */
+            enableTouch: function() {
+                // Bind touch/mouse events
+                _elements.wrapper.on('touchstart mousedown', _private.startTouch);
+                _elements.wrapper.on('touchend mouseup', _private.endTouch);
+                // Cancel drag events on images
+                _elements.wrapper.find('img').on('dragstart', function() { return false; });
+            },
+
+            /** 
+             * Start a touch event
+             * @param (event) e: the touch event
+             */
+            startTouch: function(e) {
+                var touch = (e.type == 'touchstart') ? e.originalEvent.touches[0] : e;
+                _data.start_x = touch.clientX;
+                _data.start_y = touch.clientY;
+                _data.start_time = new Date().getTime();
+            },
+
+            /** 
+             * End a touch event
+             * @param (event) e: the touch event
+             */
+            endTouch: function(e) {
+                var touch = (e.type == 'touchend') ? e.originalEvent.changedTouches[0] : e;
+                _data.end_x = touch.clientX;
+                _data.end_y = touch.clientY;
+                _data.end_time = new Date().getTime();
+                _private.checkSwipe();
+            },
+
+            /** 
+             * Check for a valid swipe event
+             */
+            checkSwipe: function() {
+                // Exit if the mousedown/press was too short
+                if((_data.end_time - _data.start_time) < _data.touch_min_time) return false;
+                // Set distances
+                var distance_x = Math.abs(_data.end_x - _data.start_x);
+                var distance_y = Math.abs(_data.end_y - _data.start_y);
+                var direction = null;
+                if(distance_x > _data.touch_x_distance && distance_y < _data.touch_y_distance) {
+                    direction = (_data.end_x > _data.start_x) ? 'right' : 'left';
+                }
+                // Trigger swipe event
+                if(direction != null) _public.swipe(direction);
+            },
 
             /**
              * Enable CSS Transitions
@@ -352,8 +399,6 @@
              * @param (mixed) delta: The change delta for the currently processing change ('+', '-', or int)
              */
             prechange: function(delta) {
-                // Get a valid index for the change
-                _private.setIndexes(delta);
                 // Update buttons
                 _private.updateButtons();
                 // If the new index is a clone index, reset the initial location so that the transition starts on clones and ends on real elements
@@ -505,6 +550,7 @@
 
             /** 
              * Update the carousel with new options
+             * @param (obj) options: The new options object
              */
             update: function(options) {
                 // Set the offset to current slide to maintain state unless overridden with the new options
@@ -564,7 +610,11 @@
              * @param (bool) (optional) nostop: Pass boolean true to prevent the change from triggering the stop() action
              */
             change: function(delta, anim, nostop) {
-                // Don't allow two change events at once
+                // Get a valid index for the change
+                _private.setIndexes(delta);
+                // If the updated index is the same as the current, no need to go any further
+                if(_data.indexes.old == _data.indexes.current) return;
+                // // Don't allow two change events at once
                 if(_data.changing) return false;
                 _data.changing = true;
                 // Set a default animation
@@ -576,12 +626,28 @@
                 // Adding a 0 timeout here because if we're using CSS Transitions, any non-transitional 
                 // changes, like reindexing on looping changes, needs to happen before the transitions are re-enabled
                 setTimeout(function() {
-                    // If the updated index is the same as the current, no need to go any further
-                    if(_data.indexes.old == _data.indexes.current) return;
                     // Transition
                     _private.transition(anim);
                 }, 0);
             },
+
+            /**
+             * Trigger a swipe event
+             * Changes to previous slide on swipe right and next on swipe left
+             * @param (string) direction: The direction of the swipe event to trigger
+             */
+            swipe: function(direction, anim, nostop) {
+                // Exit if invalid swipe direction
+                if(direction != 'left' && direction != 'right') return false;
+                // Call appropriate change event
+                (direction == 'left') 
+                    ? _public.change('+', _options.nextanim, false) 
+                    : _public.change('-', _options.prevanim, false);
+                // Callback
+                var ev = 'onswipe' + direction;
+                if(typeof _options[ev] == 'function') _options[ev](_elements.wrapper);
+            },
+
 
             /** 
              * Sets the slideshow status to 'play'

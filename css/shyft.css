@@ -50,12 +50,15 @@
 }
 .shyft-navlink {
     color: #fff;
+    background-color: #000;
     text-decoration: none;
     padding: 10px 20px;
+    transition: all .8s;
 }
 .shyft-navlink-active {
     background-color: #fff;
     color: #000;
+    transition: all .8s;
 }
 .shyft-navlink-active-secondary {
     background-color: #555;
