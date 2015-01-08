@@ -624,7 +624,7 @@
                 // Get a valid index for the change
                 _private.setIndexes(delta);
                 // If the updated index is the same as the current, no need to go any further
-                if(_data.indexes.old == _data.indexes.current) return;
+                if(_data.indexes.old == _data.indexes.current) return false;
                 // // Don't allow two change events at once
                 if(_data.changing) return false;
                 _data.changing = true;
@@ -640,6 +640,8 @@
                     // Transition
                     _private.transition(anim);
                 }, 0);
+                // Return true if the change was processed
+                return true;
             },
 
             /**
@@ -651,12 +653,14 @@
                 // Exit if invalid swipe direction
                 if(direction != 'left' && direction != 'right') return false;
                 // Call appropriate change event
-                (direction == 'left') 
+                var changed = (direction == 'left') 
                     ? _public.change('+', _options.nextanim, false) 
                     : _public.change('-', _options.prevanim, false);
-                // Callback
-                var ev = 'onswipe' + direction;
-                if(typeof _options[ev] == 'function') _options[ev](_elements.wrapper);
+                // If the swipe resulted in a change, fire the appropriate swipe callback
+                if(changed) {
+                    var ev = 'onswipe' + direction;
+                    if(typeof _options[ev] == 'function' && _options.touch) _options[ev](_elements.wrapper);                    
+                }
             },
 
 
