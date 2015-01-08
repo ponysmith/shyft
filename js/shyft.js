@@ -280,6 +280,15 @@
                 _elements.wrapper.find('img').on('dragstart', function() { return false; });
             },
 
+            /**
+             * Disable touch gestures
+             */
+            disableTouch: function() {
+                // Bind touch/mouse events
+                _elements.wrapper.off('touchstart mousedown', _private.startTouch);
+                _elements.wrapper.off('touchend mouseup', _private.endTouch);
+            },
+
             /** 
              * Start a touch event
              * @param (event) e: the touch event
@@ -544,6 +553,8 @@
                 _elements.wrapper.removeClass('shyft-wrapper');
                 // Disable the autoplay interval
                 clearInterval(_data.interval);
+                // Unbind swipe events
+                _private.disableTouch();
                 // Fire the callback
                 if(typeof _options.ondestroy == 'function' && !nocallback) _options.ondestroy();
             },
