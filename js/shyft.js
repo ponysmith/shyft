@@ -36,6 +36,7 @@
             canvas: 'shyft-canvas',
             clone: 'shyft-clone',
             item: 'shyft-item',
+            navwrapper: 'shyft-nav-wrapper',
             nav: 'shyft-nav',
             navlink: 'shyft-navlink',
             navlink_active: 'shyft-navlink-active',
@@ -220,7 +221,8 @@
                 if(_options.next) _elements.next = $('<a>').addClass(_classes.next).html(_options.nexthtml).appendTo(_elements.wrapper);
                 // Create the nav links
                 if(_options.nav) {
-                    _elements.nav = $('<div>').addClass(_classes.nav).appendTo(_elements.wrapper);
+                    _elements.navwrapper = $('<div>').addClass(_classes.navwrapper).appendTo(_elements.wrapper);
+                    _elements.nav = $('<div>').addClass(_classes.nav).appendTo(_elements.navwrapper);
                     for(i=1; i<=_data.total; i++) {
                         var navhtml = (_options.navhtml) ? _options.navhtml.replace(/{{i}}/g, i) : i;
                         var navlink = $('<a>').addClass(_classes.navlink).attr('rel',i).html(navhtml).appendTo(_elements.nav);

@@ -8,7 +8,7 @@
 .shyft-item, .shyft-clone { display: block; float: left; line-height: 0; }
 .shyft-item img { max-width: 100%; }
 .shyft-prev, .shyft-next {position: absolute; z-index: 5; display: inline-block; cursor: pointer; }
-.shyft-nav { position: absolute; z-index: 5; }
+.shyft-nav-wrapper { position: absolute; z-index: 5; }
 .shyft-navlink { display: inline-block; cursor: pointer; }
 
 
@@ -40,23 +40,24 @@
     height: 0;
     width: 0;
 }
-.shyft-nav {
+.shyft-nav-wrapper {
+    position: absolute;
+    z-index: 5;
+    background-color: rgba(0, 0, 0, .7);
     bottom: 0;
     left: 0;
     right: 0;
-    background-color: #000;
-    opacity: .7;
     text-align: right;
 }
 .shyft-navlink {
     color: #fff;
-    background-color: #000;
+    background-color: transparent;
     text-decoration: none;
     padding: 10px 20px;
     transition: all .8s;
 }
 .shyft-navlink-active {
-    background-color: #fff;
+    background-color: rgba(255, 255, 255, .7);
     color: #000;
     transition: all .8s;
 }
