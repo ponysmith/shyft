@@ -417,11 +417,17 @@
                 if(_data.indexes.current < 1) {
                     _data.indexes.current = _data.indexes.old + _data.total;  
                     _private.transition('instant');
+                    // Re add the changing flag since the instant transmission will remove it
+                    // This prevents double animations from a quick double click
+                    _data.changing = true;
                     _private.setIndexes(delta);
                 }
                 if(_data.indexes.current > _data.total) {  
                     _data.indexes.current = _data.indexes.old - _data.total;  
                     _private.transition('instant');
+                    // Re add the changing flag since the instant transmission will remove it
+                    // This prevents double animations from a quick double click
+                    _data.changing = true;
                     _private.setIndexes(delta);
                 }
                 if(typeof _options.onprechange == 'function') _options.onprechange(_data.indexes.old, _data.indexes.current);
@@ -435,10 +441,10 @@
                 if(!_options.loop && _data.indexes.current > _data.indexes.max) _public.stop();
                 // Remove the fade wrapper
                 _elements.fadewrapper.empty().remove();
-                // Trigger the callback
-                if(typeof _options.onpostchange == 'function') _options.onpostchange(_data.indexes.old, _data.indexes.current);
                 // Turn off the changing flag
                 _data.changing = false;
+                // Trigger the callback
+                if(typeof _options.onpostchange == 'function') _options.onpostchange(_data.indexes.old, _data.indexes.current);
             },
     
             /**
@@ -473,11 +479,13 @@
                                 _elements.fadewrapper.css({ opacity: 1 });
                                 setTimeout(function() {
                                     _private.transition('instant');
+                                    _private.postchange();
                                 }, _options.transition);
                             }, 20);
                         } else {
                             _elements.fadewrapper.hide().prependTo(_elements.wrapper).fadeIn(_options.transition, function() {
                                 _private.transition('instant');
+                                _private.postchange();
                             });
                         }
                         break;
@@ -485,7 +493,9 @@
                         if(_options.usecss) {
                             _private.enableCssTransitions();
                             _elements.canvas.css({ 'left': left });
-                            _private.postchange();
+                            setTimeout(function() {
+                                _private.postchange();
+                            }, _options.transition);
                         } else {
                             _elements.canvas.animate({ 'left': left }, _options.transition, _private.postchange);
                         }
@@ -623,13 +633,13 @@
              * @param (bool) (optional) nostop: Pass boolean true to prevent the change from triggering the stop() action
              */
             change: function(delta, anim, nostop) {
+                // Don't allow two change events at once
+                if(_data.changing) return false;
+                _data.changing = true;
                 // Get a valid index for the change
                 _private.setIndexes(delta);
                 // If the updated index is the same as the current, no need to go any further
                 if(_data.indexes.old == _data.indexes.current) return false;
-                // // Don't allow two change events at once
-                if(_data.changing) return false;
-                _data.changing = true;
                 // Set a default animation
                 anim = anim || _options.changeanim;
                 // Trigger stop if nostop is not true
@@ -642,8 +652,6 @@
                     // Transition
                     _private.transition(anim);
                 }, 0);
-                // Return true if the change was processed
-                return true;
             },
 
             /**
