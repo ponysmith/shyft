@@ -544,9 +544,9 @@
              */
             destroy: function(nocallback) {
                 // Remove elements
-                _elements.prev.remove();
-                _elements.next.remove();
-                _elements.nav.remove();
+                if(typeof _elements.prev == 'object') _elements.prev.remove();
+                if(typeof _elements.next == 'object') _elements.next.remove();
+                if(typeof _elements.nav == 'object') _elements.nav.remove();
                 _elements.clones.remove();
                 if(_data.total > 0) _elements.items.unwrap('.' + _classes.canvas);
                 else _elements.canvas.remove();
