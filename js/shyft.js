@@ -165,10 +165,10 @@
                 // Set the index
                 var offset = parseInt(_options.offset) || 1;
                 _data.indexes.current = (offset < 1 || offset > _data.total) ? 1 : offset;
-                // Enable touch gestures
-                if(_options.touch) _private.enableTouch();
                 // Build clone sections
                 _private.buildClones();
+                // Enable touch gestures
+                if(_options.touch) _private.enableTouch();
                 // Set item width
                 _private.updateWidths();
                 // Build the UI elements
